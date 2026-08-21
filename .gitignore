@@ -1,1 +1,6 @@
 .terraform
+*.tfstate
+*.tfstate.*
+
+# Artefactos de empaquetado de las Lambdas (Módulo 3) — se regeneran con terraform apply
+lambda/*.zip
