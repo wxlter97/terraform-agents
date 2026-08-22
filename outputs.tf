@@ -37,3 +37,28 @@ output "get_ticket_status_lambda_arn" {
   description = "ARN de la Lambda get_ticket_status (action group del agente, Módulo 3)"
   value       = aws_lambda_function.get_ticket_status.arn
 }
+
+output "faqs_bucket_name" {
+  description = "Bucket S3 con el contenido de FAQ que ingesta la Knowledge Base (Módulo 4)"
+  value       = aws_s3_bucket.faqs.id
+}
+
+output "kb_vector_bucket_name" {
+  description = "Vector bucket de S3 Vectors que respalda la Knowledge Base (Módulo 4)"
+  value       = aws_s3vectors_vector_bucket.kb.vector_bucket_name
+}
+
+output "kb_vector_index_arn" {
+  description = "ARN del índice de S3 Vectors usado como storage_configuration de la Knowledge Base (Módulo 4)"
+  value       = aws_s3vectors_index.kb.index_arn
+}
+
+output "knowledge_base_id" {
+  description = "ID de la Knowledge Base de Bedrock (Módulo 4)"
+  value       = aws_bedrockagent_knowledge_base.helpdesk.id
+}
+
+output "knowledge_base_data_source_id" {
+  description = "ID del data source S3 de la Knowledge Base, necesario para disparar la ingesta manual (Módulo 4)"
+  value       = aws_bedrockagent_data_source.faqs.data_source_id
+}

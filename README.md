@@ -57,7 +57,7 @@ terraform plan
 terraform apply
 ```
 
-## Módulo 2 (este) — Backend remoto
+## Módulo 2 — Backend remoto
 
 - Bucket S3 (versionado, cifrado, sin acceso público) para guardar el `terraform.tfstate`.
 - Tabla DynamoDB (`PAY_PER_REQUEST`) para el locking del state.
@@ -79,11 +79,48 @@ terraform init -migrate-state
 
 Detalle completo en [modules/02-backend-remoto.md](modules/02-backend-remoto.md).
 
+## Módulo 3 — Action groups
+
+- Tabla DynamoDB de tickets + policy de acceso para `lambda_exec_role` (Módulo 1).
+- Lambdas `create_ticket` y `get_ticket_status`, empaquetadas con el provider `archive`.
+- Quedan desplegadas pero inertes hasta el Módulo 5 (falta el recurso del agente y el permiso de
+  invocación resource-based del lado de la Lambda).
+
+```bash
+terraform init
+terraform plan
+terraform apply
+```
+
+Detalle completo en [modules/03-action-groups.md](modules/03-action-groups.md).
+
+## Módulo 4 (este) — Knowledge Base (RAG)
+
+- Bucket S3 con contenido de FAQ (`knowledge-base/faqs/*.md`), subido vía Terraform.
+- Vector store en **S3 Vectors** — no Aurora/pgvector, el plan original: esa cuenta de AWS es de
+  tipo "Free Plan" y eso hace que Aurora sea incompatible con la RDS Data API que Bedrock necesita
+  para conectarse. Ver [modules/04-knowledge-base.md](modules/04-knowledge-base.md) para la
+  historia completa del descarte.
+- `aws_bedrockagent_knowledge_base` + `aws_bedrockagent_data_source` sobre ese vector store.
+- Requiere el provider AWS `~> 6.0` (subido desde `~> 5.0` para los recursos `aws_s3vectors_*`).
+
+```bash
+terraform init -upgrade
+terraform plan
+terraform apply
+
+# Disparar la ingesta inicial (no hay recurso de Terraform para esto)
+aws bedrock-agent start-ingestion-job \
+  --knowledge-base-id $(terraform output -raw knowledge_base_id) \
+  --data-source-id $(terraform output -raw knowledge_base_data_source_id)
+```
+
+Detalle completo en [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
+
 ## Roadmap de módulos siguientes
 
-3. Lambda action groups: funciones que el agente puede invocar como herramientas.
-4. Knowledge Base: S3 + vector store para RAG del agente.
-5. Bedrock Agent + Agent Alias, conectando los action groups del módulo 3.
+5. Bedrock Agent + Agent Alias, conectando los action groups del módulo 3 y la Knowledge Base del
+   módulo 4.
 6. API Gateway + Lambda proxy para invocar el agente desde afuera.
 7. Observabilidad: CloudWatch logs y alarms.
 8. CI/CD: GitHub Actions con `terraform plan`/`apply` en pull requests.

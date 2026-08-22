@@ -14,11 +14,17 @@ documentación formal del código (eso ya lo cubren los comentarios en los `.tf`
 |---|---|---|
 | [01-fundamentos.md](01-fundamentos.md) | 1. Fundamentos (IAM) | ✅ Completado |
 | [02-backend-remoto.md](02-backend-remoto.md) | 2. Backend remoto (S3 + DynamoDB) | ✅ Completado |
-| `03-action-groups.md` | 3. Lambda action groups | ⏳ Pendiente |
-| `04-knowledge-base.md` | 4. Knowledge Base (RAG) | ⏳ Pendiente |
+| [03-action-groups.md](03-action-groups.md) | 3. Lambda action groups | ✅ Completado |
+| [04-knowledge-base.md](04-knowledge-base.md) | 4. Knowledge Base (RAG) | ✅ Completado |
 | `05-bedrock-agent.md` | 5. Bedrock Agent + Alias | ⏳ Pendiente |
 | `06-api-gateway.md` | 6. API Gateway + Lambda proxy | ⏳ Pendiente |
 | `07-observabilidad.md` | 7. CloudWatch logs y alarms | ⏳ Pendiente |
 | `08-cicd.md` | 8. CI/CD (GitHub Actions) | ⏳ Pendiente |
 
 Cada archivo nuevo se agrega al terminar el módulo correspondiente.
+
+## Notas conceptuales (no atadas a un módulo numerado)
+
+| Archivo | Tema |
+|---|---|
+| [agent-harness.md](agent-harness.md) | Qué es un "agent harness" (bucle de orquestación, tools, estado de sesión) y cómo se mapea a los recursos de Bedrock Agents de este proyecto. Preparación para el Módulo 5. |
