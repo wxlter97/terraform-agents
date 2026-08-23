@@ -30,8 +30,21 @@ resource "aws_iam_role" "github_actions_ci" {
         }
         # Restringido a este repo puntual (cualquier branch/PR/workflow
         # dentro de él) — no a toda la org ni a cualquier repo de GitHub.
+        #
+        # El formato "repo:OWNER/REPO:*" que documenta la mayoría de las
+        # guías de AWS/GitHub quedó desactualizado: el claim `sub` real que
+        # emite GitHub ahora incluye los IDs numéricos inmutables de cuenta y
+        # repo — "repo:wxlter97@26148836/terraform-agents@1339039518:pull_
+        # request" — no solo los nombres. Se descubrió recién al probar el
+        # primer PR real (`AssumeRoleWithWebIdentity` fallaba con "Not
+        # authorized" a pesar de una trust policy aparentemente correcta) —
+        # ver modules/08-cicd.md para el diagnóstico completo (se agregó un
+        # paso temporal al workflow para decodificar el JWT y confirmarlo).
+        # Los IDs son estables mientras no se borre/transfiera el repo o la
+        # cuenta — de hecho es más seguro que matchear por nombre, que sí
+        # puede cambiar (rename de usuario o de repo).
         StringLike = {
-          "token.actions.githubusercontent.com:sub" = "repo:wxlter97/terraform-agents:*"
+          "token.actions.githubusercontent.com:sub" = "repo:wxlter97@26148836/terraform-agents@1339039518:*"
         }
       }
     }]
