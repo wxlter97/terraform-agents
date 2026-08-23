@@ -55,26 +55,38 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       `aws bedrock-agent start-ingestion-job` más tarde (comando exacto en el módulo doc).
 - [x] `modules/04-knowledge-base.md`
 
-## ⏳ Módulo 5 — Bedrock Agent + Agent Alias
+## ✅ Módulo 5 — El agente (AgentCore, no Bedrock Agents Classic) (completado, salvo un pendiente externo)
 
-- [ ] `aws_bedrockagent_agent`: instrucciones (system prompt) del agente helpdesk, foundation
-      model, `bedrock_agent_role`
-- [ ] Conectar action group (Lambdas del Módulo 3) vía
-      `aws_bedrockagent_agent_action_group` + schema de funciones (`create_ticket`,
-      `get_ticket_status`)
-- [ ] `aws_lambda_permission` con `source_arn` del agente/alias — permiso pendiente desde el
-      Módulo 3 (ver comentario en [action-groups.tf](action-groups.tf))
-- [ ] Asociar la Knowledge Base del Módulo 4 al agente
-- [ ] `aws_bedrockagent_agent_alias`
-- [ ] Probar invocación manual (`aws bedrock-agent-runtime invoke-agent`) con una pregunta
-      resuelta por KB y otra que dispare `create_ticket`
-- [ ] `modules/05-bedrock-agent.md`
+- [x] ~~`aws_bedrockagent_agent` (Bedrock Agents Classic)~~ — **bloqueado a nivel de servicio**:
+      esta cuenta no puede crear agentes Classic (maintenance mode desde el 30/07/2026, cuentas
+      sin uso previo no tienen acceso). Pivotado a **Bedrock AgentCore** — ver
+      `modules/05-bedrock-agent.md` para la historia completa.
+- [x] `aws_bedrockagentcore_harness`: instrucciones (system prompt), modelo (Claude Haiku 4.5 vía
+      inference profile), rol de ejecución propio
+- [x] `aws_bedrockagentcore_gateway` + 3 `aws_bedrockagentcore_gateway_target` (create_ticket,
+      get_ticket_status, query_faqs) — el reemplazo de "action groups" en AgentCore
+- [x] Lambda nueva `query_faqs` — puente hacia la Knowledge Base del Módulo 4 (AgentCore no
+      tiene tool nativo de Knowledge Base)
+- [x] Reescritura de `create_ticket`/`get_ticket_status`: el contrato de evento/respuesta de un
+      Gateway target de AgentCore es distinto al de un action group de Bedrock Agents Classic
+- [x] `aws_lambda_permission` × 3 con `source_arn` del **Gateway** (no del agente/alias — ya no
+      hay alias en este diseño)
+- [ ] Probar invocación manual end-to-end — **bloqueado por tooling, no por config**: la API
+      `InvokeHarness` es tan nueva que el AWS CLI todavía no la expone (confirmado: invocar el
+      runtime interno directo devuelve *"...is managed by a harness... Use the InvokeHarness API
+      instead"*). Hace falta `boto3` (`client.invoke_harness(...)`) o la consola de AWS — en esta
+      máquina además `pip`/`boto3` no funcionan por un `libexpat` roto en el Python local. Ver
+      `modules/05-bedrock-agent.md` para el snippet de Python a usar cuando haya un entorno con
+      `boto3` disponible.
+- [x] `modules/05-bedrock-agent.md`
 
 ## ⏳ Módulo 6 — API Gateway + Lambda proxy
 
-- [ ] Lambda proxy que invoca al Agent Alias (`InvokeAgent`) y devuelve la respuesta
+- [ ] Lambda proxy que invoca al harness (`InvokeHarness`, Módulo 5 — no `InvokeAgent`, eso era
+      Bedrock Agents Classic) y devuelve la respuesta
 - [ ] `aws_apigatewayv2_api` (HTTP API) + integración + ruta
-- [ ] Permisos IAM: API Gateway → Lambda proxy → `bedrock-agent-runtime:InvokeAgent`
+- [ ] Permisos IAM: API Gateway → Lambda proxy → `bedrock-agentcore:InvokeHarness` +
+      `bedrock-agentcore:InvokeAgentRuntime` (ambos requeridos, ver modules/05-bedrock-agent.md)
 - [ ] Probar el endpoint end-to-end con `curl`
 - [ ] `modules/06-api-gateway.md`
 
@@ -106,5 +118,5 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
 1. Antes de empezar un módulo, revisar su sección acá para saber exactamente qué falta.
 2. Marcar cada tarea `[x]` a medida que se completa (no esperar a terminar todo el módulo).
 3. Al cerrar un módulo: crear `modules/NN-nombre.md`, actualizar la tabla en `modules/README.md`,
-   y si cambia el estado general del proyecto, actualizar el resumen de "Módulos 1-3 done" en
+   y si cambia el estado general del proyecto, actualizar el resumen de módulos completados en
    [CLAUDE.md](CLAUDE.md).

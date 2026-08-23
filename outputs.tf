@@ -62,3 +62,28 @@ output "knowledge_base_data_source_id" {
   description = "ID del data source S3 de la Knowledge Base, necesario para disparar la ingesta manual (Módulo 4)"
   value       = aws_bedrockagent_data_source.faqs.data_source_id
 }
+
+output "query_faqs_lambda_arn" {
+  description = "ARN de la Lambda query_faqs (puente Gateway -> Knowledge Base, Módulo 5)"
+  value       = aws_lambda_function.query_faqs.arn
+}
+
+output "gateway_id" {
+  description = "ID del AgentCore Gateway que expone las tres tool Lambdas (Módulo 5)"
+  value       = aws_bedrockagentcore_gateway.helpdesk.gateway_id
+}
+
+output "gateway_arn" {
+  description = "ARN del AgentCore Gateway (Módulo 5)"
+  value       = aws_bedrockagentcore_gateway.helpdesk.gateway_arn
+}
+
+output "harness_id" {
+  description = "ID del harness (el agente) — usar para invoke-harness (Módulo 5)"
+  value       = aws_bedrockagentcore_harness.helpdesk.harness_id
+}
+
+output "harness_arn" {
+  description = "ARN del harness (Módulo 5)"
+  value       = aws_bedrockagentcore_harness.helpdesk.arn
+}

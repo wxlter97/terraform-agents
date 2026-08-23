@@ -38,6 +38,8 @@ El agente que se va a construir es un **asistente de soporte técnico / helpdesk
   subida a S3 (módulo 4, RAG) y responde si encuentra la info.
 - Si no puede resolverlo con la documentación, usa una **tool** (Lambda, módulo 3) para crear un
   ticket en DynamoDB, y otra para consultar el estado de un ticket existente.
+- Desde el módulo 5, todo esto corre orquestado por un agente real (Bedrock AgentCore) — ver esa
+  sección más abajo.
 - El conjunto se expone como un endpoint HTTP (módulo 6) al que cualquier front-end o script
   puede llamar.
 
@@ -79,12 +81,12 @@ terraform init -migrate-state
 
 Detalle completo en [modules/02-backend-remoto.md](modules/02-backend-remoto.md).
 
-## Módulo 3 — Action groups
+## Módulo 3 — Tool Lambdas
 
 - Tabla DynamoDB de tickets + policy de acceso para `lambda_exec_role` (Módulo 1).
 - Lambdas `create_ticket` y `get_ticket_status`, empaquetadas con el provider `archive`.
-- Quedan desplegadas pero inertes hasta el Módulo 5 (falta el recurso del agente y el permiso de
-  invocación resource-based del lado de la Lambda).
+- El código de estas Lambdas se reescribió en el Módulo 5 para el contrato de evento/respuesta de
+  AgentCore Gateway — distinto al de un action group de Bedrock Agents Classic (el plan original).
 
 ```bash
 terraform init
@@ -94,7 +96,7 @@ terraform apply
 
 Detalle completo en [modules/03-action-groups.md](modules/03-action-groups.md).
 
-## Módulo 4 (este) — Knowledge Base (RAG)
+## Módulo 4 — Knowledge Base (RAG)
 
 - Bucket S3 con contenido de FAQ (`knowledge-base/faqs/*.md`), subido vía Terraform.
 - Vector store en **S3 Vectors** — no Aurora/pgvector, el plan original: esa cuenta de AWS es de
@@ -117,10 +119,32 @@ aws bedrock-agent start-ingestion-job \
 
 Detalle completo en [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
 
+## Módulo 5 (este) — El agente
+
+- El plan original era Bedrock Agents ("Classic"): declarativo, sin código propio. AWS cerró ese
+  servicio a cuentas nuevas el 30/07/2026 (maintenance mode) — esta cuenta no tiene acceso. Ver
+  [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md) para la historia completa.
+- Se construyó en su lugar sobre **Bedrock AgentCore**, también declarativo:
+  - `aws_bedrockagentcore_harness`: el agente (instrucciones, modelo, tools).
+  - `aws_bedrockagentcore_gateway` + 3 `..._gateway_target`: expone las Lambdas de los módulos 3
+    (`create_ticket`, `get_ticket_status`) y una nueva (`query_faqs`, puente hacia la Knowledge
+    Base del módulo 4) como tools MCP — el reemplazo de "action groups".
+- Modelo: Claude Haiku 4.5 vía inference profile (el "económico" que pide la nota de costos).
+
+```bash
+terraform init
+terraform plan
+terraform apply
+
+# Verificación (control plane)
+terraform output harness_id
+aws bedrock-agentcore-control get-harness --harness-id $(terraform output -raw harness_id)
+```
+
+Detalle completo en [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md).
+
 ## Roadmap de módulos siguientes
 
-5. Bedrock Agent + Agent Alias, conectando los action groups del módulo 3 y la Knowledge Base del
-   módulo 4.
-6. API Gateway + Lambda proxy para invocar el agente desde afuera.
+6. API Gateway + Lambda proxy para invocar el agente (`InvokeHarness`) desde afuera.
 7. Observabilidad: CloudWatch logs y alarms.
 8. CI/CD: GitHub Actions con `terraform plan`/`apply` en pull requests.
