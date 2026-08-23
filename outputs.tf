@@ -87,3 +87,8 @@ output "harness_arn" {
   description = "ARN del harness (Módulo 5)"
   value       = aws_bedrockagentcore_harness.helpdesk.arn
 }
+
+output "api_endpoint" {
+  description = "URL base del endpoint HTTP del agente (Módulo 6) — el chat está en POST {api_endpoint}/chat"
+  value       = aws_apigatewayv2_api.helpdesk.api_endpoint
+}

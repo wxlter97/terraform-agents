@@ -71,24 +71,28 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       Gateway target de AgentCore es distinto al de un action group de Bedrock Agents Classic
 - [x] `aws_lambda_permission` × 3 con `source_arn` del **Gateway** (no del agente/alias — ya no
       hay alias en este diseño)
-- [ ] Probar invocación manual end-to-end — **bloqueado por tooling, no por config**: la API
-      `InvokeHarness` es tan nueva que el AWS CLI todavía no la expone (confirmado: invocar el
-      runtime interno directo devuelve *"...is managed by a harness... Use the InvokeHarness API
-      instead"*). Hace falta `boto3` (`client.invoke_harness(...)`) o la consola de AWS — en esta
-      máquina además `pip`/`boto3` no funcionan por un `libexpat` roto en el Python local. Ver
-      `modules/05-bedrock-agent.md` para el snippet de Python a usar cuando haya un entorno con
-      `boto3` disponible.
+- [x] Probar invocación manual end-to-end — el AWS CLI no tiene `invoke-harness`, pero se
+      confirmó (Lambda de diagnóstico descartable) que el boto3 que trae el runtime de Lambda
+      (`python3.12`, boto3 1.42.97) sí soporta `invoke_harness` — la prueba real end-to-end se
+      hizo desde la Lambda proxy del Módulo 6, ver esa sección.
 - [x] `modules/05-bedrock-agent.md`
 
-## ⏳ Módulo 6 — API Gateway + Lambda proxy
+## ✅ Módulo 6 — API Gateway + Lambda proxy (completado, salvo un pendiente externo)
 
-- [ ] Lambda proxy que invoca al harness (`InvokeHarness`, Módulo 5 — no `InvokeAgent`, eso era
+- [x] Lambda proxy que invoca al harness (`InvokeHarness`, Módulo 5 — no `InvokeAgent`, eso era
       Bedrock Agents Classic) y devuelve la respuesta
-- [ ] `aws_apigatewayv2_api` (HTTP API) + integración + ruta
-- [ ] Permisos IAM: API Gateway → Lambda proxy → `bedrock-agentcore:InvokeHarness` +
+- [x] `aws_apigatewayv2_api` (HTTP API) + integración + ruta
+- [x] Permisos IAM: API Gateway → Lambda proxy → `bedrock-agentcore:InvokeHarness` +
       `bedrock-agentcore:InvokeAgentRuntime` (ambos requeridos, ver modules/05-bedrock-agent.md)
-- [ ] Probar el endpoint end-to-end con `curl`
-- [ ] `modules/06-api-gateway.md`
+- [x] Probar el endpoint end-to-end con `curl` — encontró y arregló un permiso IAM real faltante
+      (AgentCore Memory, ver `modules/06-api-gateway.md`), y descubrió un segundo bloqueo que
+      **no** se puede arreglar con código:
+- [ ] **Pendiente externo**: la cuenta no tiene completado el formulario de "use case" de
+      Anthropic para Bedrock (`ResourceNotFoundException: Model use case details have not been
+      submitted for this account`) — es una declaración de negocio/uso, hay que completarla a
+      mano en la consola de Bedrock (Model catalog → cualquier modelo Anthropic → formulario).
+      Comando de reintento en `modules/06-api-gateway.md`.
+- [x] `modules/06-api-gateway.md`
 
 ## ⏳ Módulo 7 — Observabilidad
 
@@ -108,10 +112,16 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
 - [ ] Correr `start-ingestion-job` de la Knowledge Base del Módulo 4 una vez que pase la
       verificación de cuenta de AWS (ver esa sección arriba) — sin esto, la KB existe pero no
       tiene vectores cargados todavía.
+- [ ] Completar el formulario de "use case" de Anthropic en la consola de Bedrock (Módulo 6) — sin
+      esto, `POST /chat` responde 500 en cualquier pregunta que llegue a invocar el modelo.
 - [ ] `providers.tf` tiene un warning de Terraform: el parámetro `dynamodb_table` del backend
       `s3` (Módulo 2) está deprecado a favor de `use_lockfile`. No urgente (sigue funcionando),
       pero conviene migrarlo en algún momento — no se tocó en el Módulo 4 para no mezclar cambios
       no relacionados en el mismo apply.
+- [ ] El endpoint `POST /chat` (Módulo 6) no tiene autenticación ni throttle — a propósito para
+      este proyecto de aprendizaje (ver nota de seguridad en `modules/06-api-gateway.md`), pero
+      vale la pena revisar si el Módulo 7 (observabilidad) debería incluir al menos una alarm de
+      gasto/uso.
 
 ## Cómo usar este archivo
 

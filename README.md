@@ -119,7 +119,7 @@ aws bedrock-agent start-ingestion-job \
 
 Detalle completo en [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
 
-## Módulo 5 (este) — El agente
+## Módulo 5 — El agente
 
 - El plan original era Bedrock Agents ("Classic"): declarativo, sin código propio. AWS cerró ese
   servicio a cuentas nuevas el 30/07/2026 (maintenance mode) — esta cuenta no tiene acceso. Ver
@@ -143,8 +143,31 @@ aws bedrock-agentcore-control get-harness --harness-id $(terraform output -raw h
 
 Detalle completo en [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md).
 
+## Módulo 6 (este) — API Gateway + Lambda proxy
+
+- `aws_apigatewayv2_api` (HTTP API) + una Lambda (`chat_proxy`) que llama `InvokeHarness` y
+  devuelve la respuesta — endpoint público, sin autenticación (ver nota de seguridad en
+  [modules/06-api-gateway.md](modules/06-api-gateway.md)).
+- Probar de verdad con `curl` encontró y arregló un permiso IAM real: el harness aprovisiona una
+  memoria de conversación por default aunque no se configure explícitamente, y hacía falta el
+  permiso `bedrock-agentcore:ListEvents` (entre otros) para usarla.
+- **Pendiente externo, no de config**: la cuenta todavía no completó el formulario de "use case"
+  de modelos Anthropic en la consola de Bedrock — sin eso, cualquier pregunta que llegue a
+  invocar el modelo responde 500. Ver [modules/06-api-gateway.md](modules/06-api-gateway.md).
+
+```bash
+terraform init
+terraform plan
+terraform apply
+
+curl -X POST "$(terraform output -raw api_endpoint)/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How do I reset my password?"}'
+```
+
+Detalle completo en [modules/06-api-gateway.md](modules/06-api-gateway.md).
+
 ## Roadmap de módulos siguientes
 
-6. API Gateway + Lambda proxy para invocar el agente (`InvokeHarness`) desde afuera.
 7. Observabilidad: CloudWatch logs y alarms.
 8. CI/CD: GitHub Actions con `terraform plan`/`apply` en pull requests.

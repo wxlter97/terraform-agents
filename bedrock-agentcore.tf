@@ -365,6 +365,25 @@ resource "aws_iam_role_policy" "harness_execution_policy" {
         Effect   = "Allow"
         Action   = ["bedrock-agentcore:InvokeGateway"]
         Resource = aws_bedrockagentcore_gateway.helpdesk.gateway_arn
+      },
+      {
+        # Sí forma parte de la baseline (a diferencia de lo que se asumió al
+        # escribir esto la primera vez): el harness aprovisiona una memoria
+        # por default automáticamente (historial de conversación por
+        # sesión) aunque no se configure el bloque `memory` explícitamente —
+        # sin este permiso, InvokeHarness falla con AccessDeniedException en
+        # ListEvents. Descubierto probando una invocación real, no leyendo
+        # docs — ver modules/06-api-gateway.md.
+        #
+        # El patrón de ARN que documenta AWS es
+        # "memory/harness_<agentNameAbbrv>_*", pero el recurso real que creó
+        # esta cuenta no tiene el prefijo "harness_" (ver el módulo doc) — se
+        # usa wildcard completo del tipo de recurso en vez de adivinar el
+        # patrón exacto.
+        Sid      = "AgentCoreMemory"
+        Effect   = "Allow"
+        Action   = ["bedrock-agentcore:CreateEvent", "bedrock-agentcore:DeleteEvent", "bedrock-agentcore:GetEvent", "bedrock-agentcore:ListEvents", "bedrock-agentcore:RetrieveMemoryRecords"]
+        Resource = "arn:aws:bedrock-agentcore:${var.aws_region}:${data.aws_caller_identity.current.account_id}:memory/*"
       }
     ]
   })
