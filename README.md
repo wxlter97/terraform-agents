@@ -167,7 +167,7 @@ curl -X POST "$(terraform output -raw api_endpoint)/chat" \
 
 Detalle completo en [modules/06-api-gateway.md](modules/06-api-gateway.md).
 
-## Módulo 7 (este) — Observabilidad
+## Módulo 7 — Observabilidad
 
 - Log groups de CloudWatch (14 días de retención) para las 4 Lambdas y el runtime del harness.
 - 10 alarms básicas: errores + throttles por Lambda, 5xx + latencia p90 del endpoint `/chat` —
@@ -187,6 +187,29 @@ aws cloudwatch describe-alarms --alarm-name-prefix agentinfra \
 
 Detalle completo en [modules/07-observabilidad.md](modules/07-observabilidad.md).
 
-## Roadmap de módulos siguientes
+## Módulo 8 (este) — CI/CD
 
-8. CI/CD: GitHub Actions con `terraform plan`/`apply` en pull requests.
+- `aws_iam_openid_connect_provider` + un rol IAM que GitHub Actions asume vía OIDC — sin access
+  keys estáticas guardadas como secret.
+- `.github/workflows/terraform-plan.yml`: `fmt -check` + `validate` + `plan` en cada PR contra
+  `master`, comentando el resultado.
+- `.github/workflows/terraform-apply.yml`: solo manual (`workflow_dispatch`), nunca automático al
+  mergear.
+- Permisos IAM amplios a propósito (no least-privilege) — ver
+  [modules/08-cicd.md](modules/08-cicd.md) para el porqué.
+
+```bash
+terraform init
+terraform plan
+terraform apply
+
+terraform output -raw github_actions_ci_role_arn
+gh variable set AWS_CI_ROLE_ARN --body "<el ARN de arriba>" --repo wxlter97/terraform-agents
+```
+
+Detalle completo en [modules/08-cicd.md](modules/08-cicd.md).
+
+## Roadmap
+
+Los 8 módulos de esta lista están completos — ver el detalle de cada uno arriba. Este era el
+roadmap completo del proyecto; no hay módulos 9+ planeados salvo que se agreguen a futuro.

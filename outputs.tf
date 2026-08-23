@@ -92,3 +92,8 @@ output "api_endpoint" {
   description = "URL base del endpoint HTTP del agente (Módulo 6) — el chat está en POST {api_endpoint}/chat"
   value       = aws_apigatewayv2_api.helpdesk.api_endpoint
 }
+
+output "github_actions_ci_role_arn" {
+  description = "ARN del rol que asume GitHub Actions vía OIDC (Módulo 8) — pegar en la variable de repo AWS_CI_ROLE_ARN"
+  value       = aws_iam_role.github_actions_ci.arn
+}

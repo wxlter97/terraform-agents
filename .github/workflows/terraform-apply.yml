@@ -1,0 +1,38 @@
+# Módulo 8: apply nunca corre solo — únicamente vía workflow_dispatch (botón
+# "Run workflow" en la pestaña Actions), y con un guard extra que falla el
+# job si por error se dispara desde un branch que no sea master. La revisión
+# real pasa antes: mergear el PR cuyo plan ya se comentó (terraform-plan.yml)
+# es la aprobación; este workflow es el segundo paso, deliberado.
+name: Terraform Apply
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure running from master
+        if: github.ref != 'refs/heads/master'
+        run: |
+          echo "::error::terraform apply solo corre desde master (ref actual: ${{ github.ref }}) — mergear el PR primero."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_CI_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform apply
+        run: terraform apply -auto-approve -input=false

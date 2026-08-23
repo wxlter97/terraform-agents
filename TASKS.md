@@ -103,12 +103,18 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       el Módulo 6 sobre el endpoint público sin auth ni throttle
 - [x] `modules/07-observabilidad.md`
 
-## ⏳ Módulo 8 — CI/CD
+## ✅ Módulo 8 — CI/CD (completado, salvo probarlo con un PR real)
 
-- [ ] Workflow de GitHub Actions: `terraform fmt -check` + `terraform validate` en cada PR
-- [ ] `terraform plan` comentado automáticamente en el PR
-- [ ] `apply` manual o gateado (no automático a `main` sin revisión)
-- [ ] `modules/08-cicd.md`
+- [x] `cicd.tf`: OIDC provider + rol IAM que GitHub Actions asume (sin access keys estáticas)
+- [x] `.github/workflows/terraform-plan.yml`: `fmt -check` + `validate` + `plan` en cada PR contra
+      `master`, comentando el resultado (actualiza el mismo comentario, no acumula)
+- [x] `.github/workflows/terraform-apply.yml`: solo `workflow_dispatch`, con guard que falla si no
+      se corre desde `master` — nunca automático al mergear
+- [x] Configuración manual (repo variable `AWS_CI_ROLE_ARN`) — hecha con `gh variable set`
+- [ ] **Pendiente**: los dos workflows están escritos y el `terraform validate`/`plan` local pasa,
+      pero no se probaron corriendo de verdad en GitHub Actions — hace falta abrir un PR real
+      contra `master` para eso (se le preguntó al usuario antes de hacerlo, repo es público).
+- [x] `modules/08-cicd.md`
 
 ## Deuda / pendientes menores
 

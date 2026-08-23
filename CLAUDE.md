@@ -9,7 +9,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Documentation and comments in this repo are written in Spanish — match that when editing
 existing files.
 
-This is currently **Módulo 7** of a planned multi-module roadmap (see README.md). Módulos 1-7 are
+This is currently **Módulo 8** of a planned multi-module roadmap (see README.md) — the whole
+roadmap is code-complete as of this module. Módulos 1-8 are
 done and actually deployed (not just code-complete — verify against `terraform state list` /
 `terraform plan`, not just by reading the `.tf` files, since earlier sessions assumed "code
 exists" meant "applied" and that wasn't true for Módulo 3 until it was actually run):
@@ -43,6 +44,15 @@ exists" meant "applied" and that wasn't true for Módulo 3 until it was actually
   a $5/mo AWS Budget filtered by the `Project` tag, notifying at 80% actual / 100% forecasted.
   Closes the cost-guardrail gap flagged in Módulo 6 (the public `/chat` endpoint has no auth or
   throttle). See [modules/07-observabilidad.md](modules/07-observabilidad.md).
+- **Módulo 8 (CI/CD)** — `cicd.tf`: an OIDC provider + IAM role GitHub Actions assumes (no static
+  AWS keys as GitHub secrets), plus `.github/workflows/terraform-plan.yml` (fmt/validate/plan on
+  every PR to `master`, commented on the PR) and `terraform-apply.yml` (`workflow_dispatch`
+  only — never automatic on merge, with a guard against running from a non-`master` ref). The IAM
+  policy is intentionally broad, not least-privilege — documented as a known trade-off, same
+  pattern as the Módulo 6 no-auth note. **Not yet tested with a real PR** — the workflows validate
+  locally (`terraform validate`) but GitHub Actions itself hasn't run them; needs a PR against
+  `master` to verify end-to-end (ask before opening one — this is a public repo). See
+  [modules/08-cicd.md](modules/08-cicd.md).
 
 **Account-level walls hit along the way — useful if this project is ever recreated in a fresh
 account, since #2 is architectural (permanent) but #1/#3/#4 are one-time setup gates that will
@@ -69,14 +79,16 @@ reappear:**
    `bedrock-agentcore.tf`) — not a business decision like #3. Per AWS, once a model is activated
    account-wide, other roles don't need this permission, but it's harmless to leave in place.
 
-Planned next modules (do not build ahead of the current module unless asked): GitHub Actions CI/CD.
+No more roadmap modules planned — 1-8 are all code-complete (see the one open item: testing the
+CI/CD workflows with a real PR). If the user wants to keep extending this project, ask what they
+want rather than assuming a specific direction — the original roadmap in README.md is done.
 
 **Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully working
-end-to-end as of Módulo 6, now with monitoring/cost guardrails from Módulo 7. It answers user questions from the
-Knowledge Base of FAQs (Módulo 4, RAG, via the `query_faqs` tool); when that's not enough, it falls
-back to `create_ticket` / `get_ticket_status` (Módulo 3) — backed by DynamoDB — all reachable over
-the HTTP endpoint from Módulo 6. Keep new Lambdas/KB content aligned with this scenario unless the
-user redirects it.
+end-to-end as of Módulo 6, with monitoring/cost guardrails from Módulo 7 and a CI/CD pipeline from
+Módulo 8. It answers user questions from the Knowledge Base of FAQs (Módulo 4, RAG, via the
+`query_faqs` tool); when that's not enough, it falls back to `create_ticket` / `get_ticket_status`
+(Módulo 3) — backed by DynamoDB — all reachable over the HTTP endpoint from Módulo 6. Keep new
+Lambdas/KB content aligned with this scenario unless the user redirects it.
 
 ## Task tracking (`TASKS.md`)
 
@@ -126,8 +138,10 @@ concepts. When a roadmap module is completed, add its `modules/NN-nombre.md` fil
   calls `InvokeHarness`), `knowledge-base.tf` (Módulo 4 KB + S3 Vectors + FAQ bucket),
   `knowledge-base/faqs/` (FAQ content, uploaded via `aws_s3_object`), `bedrock-agentcore.tf`
   (Módulo 5: harness, gateway, gateway targets, their IAM roles), `api-gateway.tf` (Módulo 6: HTTP
-  API + proxy Lambda), `observability.tf` (Módulo 7: log groups, alarms, SNS, budget), `outputs.tf`.
-  No submodules yet — everything lives in the root module.
+  API + proxy Lambda), `observability.tf` (Módulo 7: log groups, alarms, SNS, budget), `cicd.tf`
+  (Módulo 8: OIDC provider + GitHub Actions IAM role), `.github/workflows/` (Módulo 8: the actual
+  CI/CD workflows — YAML, not Terraform), `outputs.tf`. No submodules yet — everything lives in
+  the root module.
 - AWS provider is pinned `~> 6.0` (bumped from `~> 5.0` in Módulo 4 — the `aws_s3vectors_*`
   resources need >= 6.24). Verify with `terraform plan` before any future provider bump that
   nothing already-deployed shows an unexpected diff, same as was done for this one.
