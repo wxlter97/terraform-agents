@@ -24,21 +24,23 @@ exists" meant "applied" and that wasn't true for Módulo 3 until it was actually
   Gateway's event/response contract (different from the original Bedrock Agents Classic shape).
 - **Módulo 4 (Knowledge Base / RAG)** — `knowledge-base.tf`: FAQ content in S3 +
   `aws_bedrockagent_knowledge_base` backed by **S3 Vectors** (not Aurora/pgvector — that path is
-  a confirmed dead end on this account, see below). Initial ingestion is pending an AWS
-  account-verification gate, unrelated to the Terraform config — see
-  [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
+  a confirmed dead end on this account, see below). Ingestion completed (3/3 FAQ docs indexed) —
+  see [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
 - **Módulo 5 (the agent)** — `bedrock-agentcore.tf`: a `aws_bedrockagentcore_harness` (the agent),
   `aws_bedrockagentcore_gateway` + 3 `..._gateway_target` (Gateway wraps the Módulo 3 Lambdas and
   a new `query_faqs` Lambda — bridging to the Módulo 4 KB — as MCP tools). **Not** Bedrock Agents
   Classic (`aws_bedrockagent_agent`) — that's closed to this account, see below. See
   [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md) for the full story.
 - **Módulo 6 (API Gateway + proxy)** — `api-gateway.tf`: `aws_apigatewayv2_api` (HTTP API) +
-  a `chat_proxy` Lambda that calls `InvokeHarness` and returns the reply. Deployed and
-  live-tested — found and fixed a real missing IAM permission (AgentCore Memory, auto-provisioned
-  by every harness even without an explicit `memory` block) along the way. See
-  [modules/06-api-gateway.md](modules/06-api-gateway.md).
+  a `chat_proxy` Lambda that calls `InvokeHarness` and returns the reply. **Verified working
+  end-to-end for real** with `curl` — `POST /chat` returns a correct answer sourced from the
+  Módulo 4 FAQ content, and correctly recalls a ticket created in an earlier session (confirms
+  AgentCore Memory works). Getting there required fixing two real IAM gaps and completing an
+  external form — see [modules/06-api-gateway.md](modules/06-api-gateway.md).
 
-**Three account-level walls hit so far — check for these before assuming standard AWS behavior:**
+**Account-level walls hit along the way — useful if this project is ever recreated in a fresh
+account, since #2 is architectural (permanent) but #1/#3/#4 are one-time setup gates that will
+reappear:**
 1. **This AWS account is a "Free Plan" account type** (distinct from "free-tier eligible
    services") — it forces Aurora clusters into Express Configuration, which cannot attach a VPC
    or enable the RDS Data API that Bedrock's Aurora-as-KB integration requires. Confirmed by
@@ -49,22 +51,27 @@ exists" meant "applied" and that wasn't true for Módulo 3 until it was actually
    family with a different shape (Gateway + Gateway Target instead of action groups, Harness
    instead of Agent+Alias, no native Knowledge Base tool type). Don't reach for
    `aws_bedrockagent_agent*` resources in this project — they won't work on this account.
-3. **This account hasn't submitted Anthropic's "model use case" form** — invoking any Anthropic
-   model via Bedrock currently fails with `ResourceNotFoundException: Model use case details have
-   not been submitted for this account`. Not fixable in Terraform/code — it's a business/compliance
-   declaration only the account owner should submit (console: Bedrock → Model catalog → any
-   Anthropic model → fill the form). `POST /chat` (Módulo 6) will 500 until this is done. Don't
-   attempt to call `aws bedrock put-use-case-for-model-access` with invented form data.
+3. **Anthropic's "model use case" form** — invoking any Anthropic model via Bedrock for the first
+   time in an account fails with `ResourceNotFoundException: Model use case details have not been
+   submitted for this account` until this is filled out (console: Bedrock → Model catalog → any
+   Anthropic model → fill the form). It's a business/compliance declaration — only the account
+   owner should submit it; don't fabricate content for it. **Resolved** for this account.
+4. **AWS Marketplace model activation** — separately from #3, the *first* invocation of a
+   third-party model (Anthropic included) needs `aws-marketplace:Subscribe` +
+   `aws-marketplace:ViewSubscriptions` on the invoking role, or `ConverseStream` fails with
+   `AccessDeniedException`. This one *is* a normal IAM fix (added to `harness_execution_policy` in
+   `bedrock-agentcore.tf`) — not a business decision like #3. Per AWS, once a model is activated
+   account-wide, other roles don't need this permission, but it's harmless to leave in place.
 
 Planned next modules (do not build ahead of the current module unless asked): CloudWatch
 observability, and GitHub Actions CI/CD.
 
-**Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully wired
-end-to-end as of Módulo 6 (blocked only by wall #3 above — infra-wise it's complete). It answers
-user questions from the Knowledge Base of FAQs (Módulo 4, RAG, via the `query_faqs` tool); when
-that's not enough, it falls back to `create_ticket` / `get_ticket_status` (Módulo 3) — backed by
-DynamoDB — all reachable over the HTTP endpoint from Módulo 6. Keep new Lambdas/KB content aligned
-with this scenario unless the user redirects it.
+**Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully working
+end-to-end as of Módulo 6 — verified live, not just deployed. It answers user questions from the
+Knowledge Base of FAQs (Módulo 4, RAG, via the `query_faqs` tool); when that's not enough, it falls
+back to `create_ticket` / `get_ticket_status` (Módulo 3) — backed by DynamoDB — all reachable over
+the HTTP endpoint from Módulo 6. Keep new Lambdas/KB content aligned with this scenario unless the
+user redirects it.
 
 ## Task tracking (`TASKS.md`)
 

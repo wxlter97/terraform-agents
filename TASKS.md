@@ -38,7 +38,7 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
 - [x] `modules/agent-harness.md` — qué es un harness de agente y mapeo a piezas de Bedrock Agents
 - [x] Referenciado desde `modules/README.md` y `CLAUDE.md`
 
-## ✅ Módulo 4 — Knowledge Base (RAG) (completado, salvo un pendiente externo)
+## ✅ Módulo 4 — Knowledge Base (RAG) (completado)
 
 - [x] Bucket S3 para el contenido de FAQ (cifrado; no necesita versionado como el de state)
 - [x] Redactar/subir contenido inicial de FAQ (texto plano o Markdown) alineado al caso de uso
@@ -49,10 +49,10 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       de `~> 5.0` a `~> 6.0`.
 - [x] Rol IAM para la Knowledge Base (lectura de S3 + acceso al vector store)
 - [x] `aws_bedrockagent_knowledge_base` + `aws_bedrockagent_data_source`
-- [ ] Trigger de ingesta inicial (sync job) y verificación manual de una query — **bloqueado**:
-      `start-ingestion-job` devuelve `ValidationException` por verificación de cuenta nueva de
-      AWS ("normally takes less than 2 hours"). No es un problema de config; reintentar
-      `aws bedrock-agent start-ingestion-job` más tarde (comando exacto en el módulo doc).
+- [x] Trigger de ingesta inicial (sync job) y verificación manual de una query — quedó bloqueado
+      un rato por verificación de cuenta nueva de AWS, se resolvió solo (como avisaba el mensaje)
+      y corrió limpio horas después, durante el Módulo 6: 3/3 documentos indexados, una consulta
+      real devolvió el contenido exacto de la FAQ.
 - [x] `modules/04-knowledge-base.md`
 
 ## ✅ Módulo 5 — El agente (AgentCore, no Bedrock Agents Classic) (completado, salvo un pendiente externo)
@@ -77,21 +77,19 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       hizo desde la Lambda proxy del Módulo 6, ver esa sección.
 - [x] `modules/05-bedrock-agent.md`
 
-## ✅ Módulo 6 — API Gateway + Lambda proxy (completado, salvo un pendiente externo)
+## ✅ Módulo 6 — API Gateway + Lambda proxy (completado — probado end-to-end de verdad)
 
 - [x] Lambda proxy que invoca al harness (`InvokeHarness`, Módulo 5 — no `InvokeAgent`, eso era
       Bedrock Agents Classic) y devuelve la respuesta
 - [x] `aws_apigatewayv2_api` (HTTP API) + integración + ruta
 - [x] Permisos IAM: API Gateway → Lambda proxy → `bedrock-agentcore:InvokeHarness` +
       `bedrock-agentcore:InvokeAgentRuntime` (ambos requeridos, ver modules/05-bedrock-agent.md)
-- [x] Probar el endpoint end-to-end con `curl` — encontró y arregló un permiso IAM real faltante
-      (AgentCore Memory, ver `modules/06-api-gateway.md`), y descubrió un segundo bloqueo que
-      **no** se puede arreglar con código:
-- [ ] **Pendiente externo**: la cuenta no tiene completado el formulario de "use case" de
-      Anthropic para Bedrock (`ResourceNotFoundException: Model use case details have not been
-      submitted for this account`) — es una declaración de negocio/uso, hay que completarla a
-      mano en la consola de Bedrock (Model catalog → cualquier modelo Anthropic → formulario).
-      Comando de reintento en `modules/06-api-gateway.md`.
+- [x] Probar el endpoint end-to-end con `curl` — encontró y arregló **dos** permisos IAM reales
+      faltantes (AgentCore Memory, activación de AWS Marketplace para el modelo) y requirió
+      completar a mano el formulario de "use case" de Anthropic en la consola. Los tres bloqueos
+      están documentados en `modules/06-api-gateway.md`. `POST /chat` responde 200 con una
+      respuesta real y correcta, citando el contenido exacto de la FAQ del Módulo 4 y recordando
+      un ticket creado en una invocación anterior (confirma que AgentCore Memory funciona).
 - [x] `modules/06-api-gateway.md`
 
 ## ⏳ Módulo 7 — Observabilidad
@@ -109,11 +107,6 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
 
 ## Deuda / pendientes menores
 
-- [ ] Correr `start-ingestion-job` de la Knowledge Base del Módulo 4 una vez que pase la
-      verificación de cuenta de AWS (ver esa sección arriba) — sin esto, la KB existe pero no
-      tiene vectores cargados todavía.
-- [ ] Completar el formulario de "use case" de Anthropic en la consola de Bedrock (Módulo 6) — sin
-      esto, `POST /chat` responde 500 en cualquier pregunta que llegue a invocar el modelo.
 - [ ] `providers.tf` tiene un warning de Terraform: el parámetro `dynamodb_table` del backend
       `s3` (Módulo 2) está deprecado a favor de `use_lockfile`. No urgente (sigue funcionando),
       pero conviene migrarlo en algún momento — no se tocó en el Módulo 4 para no mezclar cambios

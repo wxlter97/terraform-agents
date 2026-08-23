@@ -27,10 +27,11 @@ exacto del request/response de `InvokeHarness` (`client.meta.service_model.opera
 antes de escribir `index.py` — la respuesta es un **stream de eventos** al estilo Bedrock Converse
 Stream, no un JSON plano.
 
-## Dos bugs reales encontrados recién al invocar de verdad
+## Tres problemas reales encontrados recién al invocar de verdad
 
 El primer `terraform apply` de este módulo salió limpio (`terraform plan` no había mostrado nada
-raro), pero la primera invocación real vía `curl` falló — dos veces, con dos causas distintas:
+raro), pero la primera invocación real vía `curl` falló — tres veces, con tres causas distintas,
+hasta que el endpoint respondió de verdad:
 
 1. **Permiso IAM faltante para AgentCore Memory.** El harness aprovisiona automáticamente una
    memoria por default (historial de conversación por sesión) aunque el bloque `memory` no se
@@ -46,15 +47,43 @@ raro), pero la primera invocación real vía `curl` falló — dos veces, con do
    `ResourceNotFoundException: Model use case details have not been submitted for this account.
    Fill out the Anthropic use case details form before using the model.` — un requisito de
    compliance de Anthropic/AWS para cuentas que invocan modelos Anthropic por primera vez,
-   completamente aparte del "account verification" del Módulo 4. **No es un problema de Terraform
-   ni de este código** — es un formulario de negocio/uso que representa una declaración de la
-   cuenta, así que queda pendiente para completar manualmente (ver "Pendiente" abajo), no algo que
-   se pueda resolver con más permisos IAM.
+   completamente aparte del "account verification" del Módulo 4. No era un problema de Terraform
+   ni de este código — es una declaración de negocio/uso de la cuenta, así que se completó a mano
+   en la consola de Bedrock (Model catalog → Claude Haiku 4.5 → formulario).
+3. **Falta de permisos de AWS Marketplace para activar el modelo.** Resuelto el punto 2, la
+   invocación volvió a fallar, ahora con `AccessDeniedException: ... not authorized to perform the
+   required AWS Marketplace actions (aws-marketplace:ViewSubscriptions, aws-marketplace:Subscribe)
+   to enable access to this model`. Los modelos de terceros en Bedrock (Anthropic incluido) se
+   activan la primera vez vía una suscripción interna de AWS Marketplace (no una compra aparte, no
+   cambia el costo por token) — el rol que invoca el modelo necesita esos dos permisos para esa
+   primera activación. Es un problema documentado y con solución estándar (a diferencia del punto
+   2): se agregó el statement `MarketplaceModelActivation` a `harness_execution_policy`. Según AWS,
+   una vez que el modelo queda activado en la cuenta, cualquier rol puede invocarlo sin este
+   permiso — se dejó igual en el código porque sacarlo después no aporta nada.
 
-Ninguno de los dos apareció en `terraform plan`/`apply` porque son errores de **runtime** (permisos
-IAM evaluados al invocar, no al crear el rol; el gate de Anthropic se evalúa al invocar el modelo)
-— otro recordatorio de que "aplicó sin errores" no es lo mismo que "funciona", sobre todo con
-servicios nuevos donde la documentación puede no reflejar el comportamiento real todavía.
+Ninguno de los tres apareció en `terraform plan`/`apply` porque son errores de **runtime** (permisos
+IAM evaluados al invocar, no al crear el rol; los otros dos son gates de cuenta que solo se
+evalúan al invocar el modelo) — otro recordatorio de que "aplicó sin errores" no es lo mismo que
+"funciona", sobre todo con servicios nuevos donde la documentación puede no reflejar el
+comportamiento real todavía.
+
+## Verificado end-to-end
+
+Con los tres problemas resueltos y la ingesta de la Knowledge Base (Módulo 4, bloqueada hasta acá
+por el "account verification" genérico) corrida por fin, una pregunta real contestó citando el
+contenido exacto de la FAQ subida en el Módulo 4:
+
+```
+$ curl -X POST "$(terraform output -raw api_endpoint)/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "How do I reset my password?"}'
+
+{"reply": "...Andá a la pantalla de login y hacé clic en '¿Olvidaste tu contraseña?'...", "stop_reason": "end_turn", ...}
+```
+
+Y una segunda pregunta, en la misma sesión de pruebas, mostró que el agente recuerda tickets ya
+creados sin que se le repita el `ticket_id` — confirma que la memoria de AgentCore (punto 1 arriba)
+efectivamente persiste contexto entre invocaciones.
 
 ## Terminología nueva
 
@@ -65,19 +94,15 @@ servicios nuevos donde la documentación puede no reflejar el comportamiento rea
 | **Payload format version 2.0** | El shape simplificado de evento/respuesta para integraciones Lambda de HTTP API (más chico que el 1.0, que imita el formato viejo de REST API). |
 | **AgentCore Memory (default)** | Instancia de memoria que un harness aprovisiona automáticamente para trackear el historial de una sesión de conversación — no hace falta crearla ni referenciarla a mano, pero sí darle permisos IAM al rol de ejecución. |
 | **Anthropic use case form** | Formulario de compliance que declara para qué se van a usar los modelos Anthropic en la cuenta — requisito único por cuenta, separado del "account verification" genérico de Bedrock (Módulo 4). |
+| **AWS Marketplace model activation** | Mecanismo interno por el que Bedrock activa el acceso a un modelo de un tercero (Anthropic incluido) la primera vez que se invoca en la cuenta — requiere permisos `aws-marketplace:Subscribe`/`ViewSubscriptions` en el rol que invoca, una sola vez por modelo por cuenta. |
 
-## Pendiente: completar el formulario de use case de Anthropic
+## Ya no está pendiente: use case form + activación de Marketplace
 
-Para que el endpoint funcione de punta a punta hace falta completar esto **manualmente en la
-consola** (es una declaración de la cuenta, no algo que este proyecto deba automatizar ni asumir
-en tu nombre):
-
-1. Consola de AWS → Bedrock → Model catalog (o Playground) → elegir cualquier modelo Anthropic.
-2. Completar el formulario de "use case details" que aparece.
-3. Esperar unos minutos (el error menciona hasta 15) y reintentar.
-
-Existe una API (`aws bedrock put-use-case-for-model-access --form-data <blob>`) pero requiere un
-payload con la información de uso de la cuenta — no es algo para completar con datos inventados.
+Ambos se resolvieron durante este módulo (ver arriba) — el formulario se completó a mano en la
+consola (declaración de negocio/uso, no algo que este proyecto deba automatizar), y la activación
+de Marketplace se resolvió con el permiso IAM `MarketplaceModelActivation`. Se deja esta sección
+como referencia por si el proyecto se recrea en una cuenta nueva: **ambos gates vuelven a
+aparecer** en cualquier cuenta que invoque modelos Anthropic por primera vez.
 
 ## Comandos usados para desplegar y verificar
 

@@ -295,6 +295,21 @@ resource "aws_iam_role_policy" "harness_execution_policy" {
         Resource = ["arn:aws:bedrock:*::foundation-model/*", "arn:aws:bedrock:${var.aws_region}:${data.aws_caller_identity.current.account_id}:*"]
       },
       {
+        # Modelos de terceros en Bedrock (Anthropic incluido) se activan la
+        # primera vez vía una suscripción interna de AWS Marketplace — sin
+        # este permiso, ConverseStream falla con AccessDeniedException
+        # pidiendo justo estas dos acciones. Es un mecanismo interno de
+        # activación (no una compra aparte, no cambia el costo por token) y,
+        # según AWS, una vez que el modelo queda activado en la cuenta
+        # cualquier rol puede invocarlo sin este permiso — se deja igual,
+        # no vale la pena sacarlo después. Descubierto invocando de verdad,
+        # no en la doc — ver modules/06-api-gateway.md.
+        Sid      = "MarketplaceModelActivation"
+        Effect   = "Allow"
+        Action   = ["aws-marketplace:Subscribe", "aws-marketplace:ViewSubscriptions"]
+        Resource = "*"
+      },
+      {
         # El runtime administrado del harness se descarga de ECR Public en
         # cada sesión — no es un container propio, así que hace falta este
         # permiso aunque no gestionemos ninguna imagen nosotros.

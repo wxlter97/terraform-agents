@@ -118,14 +118,17 @@ aws bedrock-agent-runtime retrieve \
   --retrieval-query '{"text": "cómo reseteo mi contraseña"}'
 ```
 
-## Pendiente al momento de escribir esto
+## La ingesta inicial quedó bloqueada, y se resolvió sola
 
-El `apply` de toda la infraestructura terminó sin errores, pero **la ingesta inicial todavía no
-corrió**: `start-ingestion-job` devolvió un `ValidationException` — *"Your account is currently
-being verified... normally takes less than 2 hours"* — un gate de AWS sobre cuentas nuevas antes
-de habilitarles invocar modelos de Bedrock (no listar, invocar). No es un problema de
-configuración: el rol IAM y los permisos están bien, es una verificación a nivel de cuenta que
-se resuelve sola. Repetir el comando de `start-ingestion-job` de arriba una vez pasado ese tiempo.
+El primer intento de `start-ingestion-job` devolvió un `ValidationException` — *"Your account is
+currently being verified... normally takes less than 2 hours"* — un gate de AWS sobre cuentas
+nuevas antes de habilitarles invocar modelos de Bedrock (no listar, invocar). No era un problema de
+configuración: el rol IAM y los permisos estaban bien, era una verificación a nivel de cuenta.
+
+Se resolvió sola, como decía el mensaje — se reintentó horas más tarde (durante el Módulo 6, al
+verificar el agente end-to-end) y corrió limpio: `status: COMPLETE`, los 3 documentos de FAQ
+indexados sin fallos. Una consulta real después de eso devolvió el contenido exacto de la FAQ —
+ver [modules/06-api-gateway.md](06-api-gateway.md) para la prueba completa.
 
 ## Costo
 

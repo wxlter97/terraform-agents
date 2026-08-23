@@ -143,17 +143,17 @@ aws bedrock-agentcore-control get-harness --harness-id $(terraform output -raw h
 
 Detalle completo en [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md).
 
-## Módulo 6 (este) — API Gateway + Lambda proxy
+## Módulo 6 — API Gateway + Lambda proxy
 
 - `aws_apigatewayv2_api` (HTTP API) + una Lambda (`chat_proxy`) que llama `InvokeHarness` y
   devuelve la respuesta — endpoint público, sin autenticación (ver nota de seguridad en
   [modules/06-api-gateway.md](modules/06-api-gateway.md)).
-- Probar de verdad con `curl` encontró y arregló un permiso IAM real: el harness aprovisiona una
-  memoria de conversación por default aunque no se configure explícitamente, y hacía falta el
-  permiso `bedrock-agentcore:ListEvents` (entre otros) para usarla.
-- **Pendiente externo, no de config**: la cuenta todavía no completó el formulario de "use case"
-  de modelos Anthropic en la consola de Bedrock — sin eso, cualquier pregunta que llegue a
-  invocar el modelo responde 500. Ver [modules/06-api-gateway.md](modules/06-api-gateway.md).
+- Probar de verdad con `curl` encontró y arregló dos permisos IAM reales (memoria de conversación
+  por default del harness, activación de AWS Marketplace del modelo) y requirió completar a mano
+  el formulario de "use case" de Anthropic en la consola — los tres bloqueos están documentados en
+  [modules/06-api-gateway.md](modules/06-api-gateway.md).
+- **Verificado funcionando de punta a punta**: `POST /chat` responde con el contenido exacto de la
+  FAQ del módulo 4 y recuerda tickets creados en invocaciones anteriores.
 
 ```bash
 terraform init

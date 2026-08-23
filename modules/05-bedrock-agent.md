@@ -105,25 +105,23 @@ aws bedrock-agentcore-control get-harness --harness-id <harness_id>
 aws bedrock-agentcore-control list-gateway-targets --gateway-identifier $(terraform output -raw gateway_id)
 ```
 
-## Pendiente: invocación end-to-end
+## Invocación end-to-end: resuelta en el Módulo 6
 
-El harness quedó verificado como `READY` (control plane), con el modelo, el system prompt y las
-tres tools exactamente como se configuraron — pero no se pudo probar una conversación real
-end-to-end en esta sesión. La API de invocación (`InvokeHarness`) es tan nueva que **el AWS CLI
-todavía no la expone** — confirmado probando `aws bedrock-agentcore invoke-agent-runtime`
-directamente contra el runtime interno del harness, que devuelve explícitamente:
+En esta sesión, el harness quedó verificado como `READY` (control plane) — modelo, system prompt y
+las tres tools exactamente como se configuraron — pero no se pudo probar una conversación real
+todavía: la API de invocación (`InvokeHarness`) es tan nueva que **el AWS CLI no la expone**
+(confirmado probando `aws bedrock-agentcore invoke-agent-runtime` directamente contra el runtime
+interno del harness, que devuelve explícitamente *"...is managed by a harness... Use the
+InvokeHarness API instead"*), y esta máquina tiene un Python local con `libexpat` roto que impidió
+instalar `boto3` para probar desde acá.
 
-```
-ValidationException: The agent runtime ... is managed by a harness and cannot be invoked
-directly. Use the InvokeHarness API with the relevant harness ID instead.
-```
-
-Es un gap real de tooling (confirmado con el error del servicio, no una suposición), no un
-problema de este proyecto. Para probarlo hace falta el SDK (`boto3`, método `invoke_harness`) o la
-consola de AWS. En esta máquina, además, la instalación de Python tiene un problema de linkeo de
-`libexpat` que impidió instalar `boto3` para probarlo — un problema del entorno local, no del
-código. Próximos pasos posibles: probar desde la consola de Bedrock AgentCore, o desde otra
-máquina/entorno con `boto3` funcionando:
+La solución terminó siendo desplegar el proxy del Módulo 6 (una Lambda, cuyo runtime administrado
+sí trae un boto3 con `invoke_harness` — verificado con una Lambda de diagnóstico antes de escribir
+el código real). Ahí sí se pudo probar de punta a punta — ver
+[modules/06-api-gateway.md](06-api-gateway.md) para el resultado (y dos bugs de IAM que solo
+aparecieron al invocar de verdad, no en `terraform plan`). El snippet de Python de abajo sigue
+siendo útil como referencia para invocar el harness directo (sin pasar por el proxy), por ejemplo
+para debug:
 
 ```python
 import boto3, uuid
