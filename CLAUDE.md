@@ -49,9 +49,12 @@ exists" meant "applied" and that wasn't true for Módulo 3 until it was actually
   every PR to `master`, commented on the PR) and `terraform-apply.yml` (`workflow_dispatch`
   only — never automatic on merge, with a guard against running from a non-`master` ref). The IAM
   policy is intentionally broad, not least-privilege — documented as a known trade-off, same
-  pattern as the Módulo 6 no-auth note. **Not yet tested with a real PR** — the workflows validate
-  locally (`terraform validate`) but GitHub Actions itself hasn't run them; needs a PR against
-  `master` to verify end-to-end (ask before opening one — this is a public repo). See
+  pattern as the Módulo 6 no-auth note. **Verified working end-to-end with a real PR**
+  ([#1](https://github.com/wxlter97/terraform-agents/pull/1)) — found and fixed a real bug along
+  the way: GitHub's OIDC `sub` claim embeds immutable numeric account/repo IDs
+  (`repo:OWNER@OWNER_ID/REPO@REPO_ID:...`), not just names as most guides show — the trust
+  policy's `StringLike` condition in `cicd.tf` was wrong until this was confirmed by decoding an
+  actual token. See
   [modules/08-cicd.md](modules/08-cicd.md).
 
 **Account-level walls hit along the way — useful if this project is ever recreated in a fresh
@@ -79,9 +82,9 @@ reappear:**
    `bedrock-agentcore.tf`) — not a business decision like #3. Per AWS, once a model is activated
    account-wide, other roles don't need this permission, but it's harmless to leave in place.
 
-No more roadmap modules planned — 1-8 are all code-complete (see the one open item: testing the
-CI/CD workflows with a real PR). If the user wants to keep extending this project, ask what they
-want rather than assuming a specific direction — the original roadmap in README.md is done.
+No more roadmap modules planned — 1-8 are all done and verified, not just code-complete. If the
+user wants to keep extending this project, ask what they want rather than assuming a specific
+direction — the original roadmap in README.md is done.
 
 **Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully working
 end-to-end as of Módulo 6, with monitoring/cost guardrails from Módulo 7 and a CI/CD pipeline from

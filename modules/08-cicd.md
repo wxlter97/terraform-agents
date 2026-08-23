@@ -8,9 +8,9 @@
     es ante AWS.
   - `aws_iam_role.github_actions_ci`: el rol que los workflows asumen. El trust policy usa
     `sts:AssumeRoleWithWebIdentity` (no `sts:AssumeRole`, ese es para roles asumidos por otro rol o
-    usuario IAM) y restringe el claim `sub` del token de GitHub a
-    `repo:wxlter97/terraform-agents:*` — cualquier branch/PR/workflow de este repo puntual, ningún
-    otro repo ni cuenta.
+    usuario IAM) y restringe el claim `sub` del token de GitHub a este repo puntual — ningún otro
+    repo ni cuenta (ver más abajo el formato real del claim, que no es el que documentan la
+    mayoría de las guías).
   - `aws_iam_role_policy.github_actions_ci_policy`: permisos amplios por servicio (no
     least-privilege — ver más abajo el porqué).
 - **`.github/workflows/terraform-plan.yml`**: en cada PR contra `master` que toque `.tf`,
@@ -31,6 +31,33 @@ roles, nunca usuarios/API keys" que ya venían los módulos anteriores): no hay 
 larga vida que filtrar, rotar, ni revocar — el token que GitHub le pasa a AWS en cada corrida es
 efímero y se emite recién en el momento, firmado por GitHub, verificado por AWS contra el
 proveedor OIDC registrado en `cicd.tf`.
+
+## El bug real que solo apareció al abrir un PR de verdad
+
+El primer PR real (#1) falló en `configure-aws-credentials` con
+`Not authorized to perform sts:AssumeRoleWithWebIdentity` — a pesar de que la trust policy se
+veía correcta, coincidía con el formato que documentan casi todas las guías de AWS/GitHub
+(`repo:OWNER/REPO:*`), y `terraform validate`/`plan` locales no tenían forma de detectar el
+problema (el trust policy es JSON válido, el error es de contenido, no de sintaxis). Reintentar el
+mismo run no lo arregló — descartaba que fuera propagación de IAM.
+
+Para diagnosticar sin adivinar, se agregó un paso temporal al workflow que pide su propio token
+OIDC (`ACTIONS_ID_TOKEN_REQUEST_URL`/`TOKEN`, las env vars que expone `permissions: id-token:
+write`) y decodifica el JWT a mano (es solo base64, no hace falta librería). El claim `sub` real
+resultó ser:
+
+```
+repo:wxlter97@26148836/terraform-agents@1339039518:pull_request
+```
+
+No `repo:wxlter97/terraform-agents:pull_request` — GitHub agrega los **IDs numéricos inmutables**
+de cuenta y repo junto al nombre (`OWNER@OWNER_ID/REPO@REPO_ID`), no solo el nombre. La condición
+`StringLike` de `cicd.tf` se corrigió para matchear el formato real. Una vez arreglado, el mismo
+PR corrió limpio de punta a punta: `fmt` → `init` → `validate` → `plan` → comentario en el PR con
+`No changes` (esperable, ya que toda la infra se había aplicado a mano durante los módulos 1-8).
+
+El paso de debug se sacó del workflow una vez que cumplió su propósito — quedó documentado acá en
+vez de en el código, para no dejar un paso de diagnóstico corriendo en cada PR futuro.
 
 ## Permisos amplios: una simplificación documentada, no un descuido
 
@@ -73,7 +100,7 @@ de AWS).
 |---|---|
 | **OIDC (OpenID Connect) federation** | Mecanismo por el cual un proveedor externo (acá, GitHub Actions) puede probar su identidad ante AWS con un token firmado y de corta duración, sin que AWS tenga que confiar en un secreto compartido de antemano. |
 | **`sts:AssumeRoleWithWebIdentity`** | La acción de STS específica para asumir un rol usando un token de identidad web (OIDC/JWT) en vez de credenciales IAM existentes (`sts:AssumeRole`) o un usuario federado de SAML. |
-| **Claim `sub` (subject)** | Campo del token JWT que GitHub Actions emite, con el formato `repo:OWNER/REPO:ref:refs/heads/BRANCH` (push) o `repo:OWNER/REPO:pull_request` (PR) — es lo que la trust policy compara para decidir si confía en ese token puntual. |
+| **Claim `sub` (subject)** | Campo del token JWT que GitHub Actions emite — es lo que la trust policy compara para decidir si confía en ese token puntual. Formato real (confirmado empíricamente, no el que documenta la mayoría de las guías): `repo:OWNER@OWNER_ID/REPO@REPO_ID:ref:refs/heads/BRANCH` (push) o `repo:OWNER@OWNER_ID/REPO@REPO_ID:pull_request` (PR) — con los IDs numéricos inmutables, no solo el nombre. |
 | **`workflow_dispatch`** | Trigger de GitHub Actions que solo se dispara manualmente (botón "Run workflow" en la UI, o vía API/`gh workflow run`) — nunca automático por un evento de git. |
 | **Repository variable** (`vars` en GitHub Actions) | Configuración de repo no sensible (a diferencia de un *secret*) — acá, el ARN del rol, que no es secreto (conocerlo no alcanza para asumir el rol sin pasar también por la verificación OIDC). |
 

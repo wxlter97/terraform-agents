@@ -103,7 +103,7 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       el Módulo 6 sobre el endpoint público sin auth ni throttle
 - [x] `modules/07-observabilidad.md`
 
-## ✅ Módulo 8 — CI/CD (completado, salvo probarlo con un PR real)
+## ✅ Módulo 8 — CI/CD (completado, probado end-to-end con un PR real)
 
 - [x] `cicd.tf`: OIDC provider + rol IAM que GitHub Actions asume (sin access keys estáticas)
 - [x] `.github/workflows/terraform-plan.yml`: `fmt -check` + `validate` + `plan` en cada PR contra
@@ -111,9 +111,12 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
 - [x] `.github/workflows/terraform-apply.yml`: solo `workflow_dispatch`, con guard que falla si no
       se corre desde `master` — nunca automático al mergear
 - [x] Configuración manual (repo variable `AWS_CI_ROLE_ARN`) — hecha con `gh variable set`
-- [ ] **Pendiente**: los dos workflows están escritos y el `terraform validate`/`plan` local pasa,
-      pero no se probaron corriendo de verdad en GitHub Actions — hace falta abrir un PR real
-      contra `master` para eso (se le preguntó al usuario antes de hacerlo, repo es público).
+- [x] Probado con un PR real ([#1](https://github.com/wxlter97/terraform-agents/pull/1)) — encontró
+      y arregló un bug real: el claim `sub` del token OIDC de GitHub incluye los IDs numéricos
+      inmutables de cuenta/repo (`repo:wxlter97@26148836/terraform-agents@1339039518:...`), no solo
+      los nombres como documenta la mayoría de las guías. `AssumeRoleWithWebIdentity` fallaba con
+      "Not authorized" hasta corregir la condición `StringLike` en `cicd.tf`. Corrido de nuevo tras
+      el fix: `fmt` → `init` → `validate` → `plan` limpio, comentario en el PR con `No changes`.
 - [x] `modules/08-cicd.md`
 
 ## Deuda / pendientes menores
