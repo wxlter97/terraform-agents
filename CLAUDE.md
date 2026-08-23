@@ -9,23 +9,96 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Documentation and comments in this repo are written in Spanish — match that when editing
 existing files.
 
-This is currently **Módulo 1** of a planned multi-module roadmap (see README.md). Only the IAM
-foundation exists so far:
-- `aws_iam_role.bedrock_agent_role` — role Bedrock assumes to invoke the foundation model.
-- `aws_iam_role.lambda_exec_role` — execution role for future action-group Lambdas (Módulo 3),
-  provisioned early so resources don't need reordering later.
-- A policy on `bedrock_agent_role` grants it `lambda:InvokeFunction` on any function named
-  `${var.project_name}-*`, anticipating the action-group Lambdas.
+This is currently **Módulo 8** of a planned multi-module roadmap (see README.md) — the whole
+roadmap is code-complete as of this module. Módulos 1-8 are
+done and actually deployed (not just code-complete — verify against `terraform state list` /
+`terraform plan`, not just by reading the `.tf` files, since earlier sessions assumed "code
+exists" meant "applied" and that wasn't true for Módulo 3 until it was actually run):
+- **Módulo 1 (IAM)** — `aws_iam_role.bedrock_agent_role` + `aws_iam_role.lambda_exec_role`.
+  `bedrock_agent_role` is currently **unused** (see Módulo 5 note below) — kept, not deleted.
+- **Módulo 2 (remote backend)** — `backend.tf` bootstraps an S3 bucket (versioned, encrypted,
+  `prevent_destroy`) and a DynamoDB lock table; `providers.tf`'s `backend "s3"` block is now the
+  active backend (migrated from local).
+- **Módulo 3 (tool Lambdas)** — `action-groups.tf` + `lambda/create_ticket/`,
+  `lambda/get_ticket_status/`: a `tickets` DynamoDB table and two Lambdas, using
+  `lambda_exec_role` from Módulo 1. Their code was **rewritten in Módulo 5** for AgentCore
+  Gateway's event/response contract (different from the original Bedrock Agents Classic shape).
+- **Módulo 4 (Knowledge Base / RAG)** — `knowledge-base.tf`: FAQ content in S3 +
+  `aws_bedrockagent_knowledge_base` backed by **S3 Vectors** (not Aurora/pgvector — that path is
+  a confirmed dead end on this account, see below). Ingestion completed (3/3 FAQ docs indexed) —
+  see [modules/04-knowledge-base.md](modules/04-knowledge-base.md).
+- **Módulo 5 (the agent)** — `bedrock-agentcore.tf`: a `aws_bedrockagentcore_harness` (the agent),
+  `aws_bedrockagentcore_gateway` + 3 `..._gateway_target` (Gateway wraps the Módulo 3 Lambdas and
+  a new `query_faqs` Lambda — bridging to the Módulo 4 KB — as MCP tools). **Not** Bedrock Agents
+  Classic (`aws_bedrockagent_agent`) — that's closed to this account, see below. See
+  [modules/05-bedrock-agent.md](modules/05-bedrock-agent.md) for the full story.
+- **Módulo 6 (API Gateway + proxy)** — `api-gateway.tf`: `aws_apigatewayv2_api` (HTTP API) +
+  a `chat_proxy` Lambda that calls `InvokeHarness` and returns the reply. **Verified working
+  end-to-end for real** with `curl` — `POST /chat` returns a correct answer sourced from the
+  Módulo 4 FAQ content, and correctly recalls a ticket created in an earlier session (confirms
+  AgentCore Memory works). Getting there required fixing two real IAM gaps and completing an
+  external form — see [modules/06-api-gateway.md](modules/06-api-gateway.md).
+- **Módulo 7 (observability)** — `observability.tf`: log groups (14-day retention, imported the
+  ones already auto-created by prior invocations) for all 4 Lambdas + the harness runtime; 10
+  CloudWatch alarms (Lambda errors/throttles ×4, API Gateway 5xx + p90 latency) via one SNS topic;
+  a $5/mo AWS Budget filtered by the `Project` tag, notifying at 80% actual / 100% forecasted.
+  Closes the cost-guardrail gap flagged in Módulo 6 (the public `/chat` endpoint has no auth or
+  throttle). See [modules/07-observabilidad.md](modules/07-observabilidad.md).
+- **Módulo 8 (CI/CD)** — `cicd.tf`: an OIDC provider + IAM role GitHub Actions assumes (no static
+  AWS keys as GitHub secrets), plus `.github/workflows/terraform-plan.yml` (fmt/validate/plan on
+  every PR to `master`, commented on the PR) and `terraform-apply.yml` (`workflow_dispatch`
+  only — never automatic on merge, with a guard against running from a non-`master` ref). The IAM
+  policy is intentionally broad, not least-privilege — documented as a known trade-off, same
+  pattern as the Módulo 6 no-auth note. **Verified working end-to-end with a real PR**
+  ([#1](https://github.com/wxlter97/terraform-agents/pull/1)) — found and fixed a real bug along
+  the way: GitHub's OIDC `sub` claim embeds immutable numeric account/repo IDs
+  (`repo:OWNER@OWNER_ID/REPO@REPO_ID:...`), not just names as most guides show — the trust
+  policy's `StringLike` condition in `cicd.tf` was wrong until this was confirmed by decoding an
+  actual token. See
+  [modules/08-cicd.md](modules/08-cicd.md).
 
-Planned next modules (do not build ahead of the current module unless asked): remote S3+DynamoDB
-backend, Lambda action groups, a Knowledge Base (S3 + vector store) for RAG, the Bedrock Agent +
-Agent Alias itself, an API Gateway proxy, CloudWatch observability, and GitHub Actions CI/CD.
+**Account-level walls hit along the way — useful if this project is ever recreated in a fresh
+account, since #2 is architectural (permanent) but #1/#3/#4 are one-time setup gates that will
+reappear:**
+1. **This AWS account is a "Free Plan" account type** (distinct from "free-tier eligible
+   services") — it forces Aurora clusters into Express Configuration, which cannot attach a VPC
+   or enable the RDS Data API that Bedrock's Aurora-as-KB integration requires. Confirmed by
+   hands-on testing. Relevant if a future module reaches for RDS/Aurora.
+2. **Bedrock Agents Classic (`aws_bedrockagent_agent*`) is closed to this account** — AWS put it
+   in maintenance mode on 2026-07-30; accounts with no prior usage can't create new agents.
+   Módulo 5 uses **Bedrock AgentCore** (`aws_bedrockagentcore_*`) instead — a different resource
+   family with a different shape (Gateway + Gateway Target instead of action groups, Harness
+   instead of Agent+Alias, no native Knowledge Base tool type). Don't reach for
+   `aws_bedrockagent_agent*` resources in this project — they won't work on this account.
+3. **Anthropic's "model use case" form** — invoking any Anthropic model via Bedrock for the first
+   time in an account fails with `ResourceNotFoundException: Model use case details have not been
+   submitted for this account` until this is filled out (console: Bedrock → Model catalog → any
+   Anthropic model → fill the form). It's a business/compliance declaration — only the account
+   owner should submit it; don't fabricate content for it. **Resolved** for this account.
+4. **AWS Marketplace model activation** — separately from #3, the *first* invocation of a
+   third-party model (Anthropic included) needs `aws-marketplace:Subscribe` +
+   `aws-marketplace:ViewSubscriptions` on the invoking role, or `ConverseStream` fails with
+   `AccessDeniedException`. This one *is* a normal IAM fix (added to `harness_execution_policy` in
+   `bedrock-agentcore.tf`) — not a business decision like #3. Per AWS, once a model is activated
+   account-wide, other roles don't need this permission, but it's harmless to leave in place.
 
-**Concrete use case (guides módulos 3-4 onward, see README.md "Caso de uso"):** a support/helpdesk
-agent. It answers user questions from a Knowledge Base of FAQs stored in S3 (RAG, módulo 4); when
-that's not enough, it falls back to action-group Lambdas — `create_ticket` and
-`get_ticket_status` — backed by DynamoDB (módulo 3). Keep new Lambdas/KB content aligned with this
-scenario unless the user redirects it.
+No more roadmap modules planned — 1-8 are all done and verified, not just code-complete. If the
+user wants to keep extending this project, ask what they want rather than assuming a specific
+direction — the original roadmap in README.md is done.
+
+**Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully working
+end-to-end as of Módulo 6, with monitoring/cost guardrails from Módulo 7 and a CI/CD pipeline from
+Módulo 8. It answers user questions from the Knowledge Base of FAQs (Módulo 4, RAG, via the
+`query_faqs` tool); when that's not enough, it falls back to `create_ticket` / `get_ticket_status`
+(Módulo 3) — backed by DynamoDB — all reachable over the HTTP endpoint from Módulo 6. Keep new
+Lambdas/KB content aligned with this scenario unless the user redirects it.
+
+## Task tracking (`TASKS.md`)
+
+[TASKS.md](TASKS.md) is the source of truth for implementation status at task granularity (finer
+than the per-module table in `modules/README.md`). Check it before starting work to see exactly
+what's outstanding in the current/next module, and update it (check off tasks, add the module's
+`modules/NN-nombre.md` line) as work completes — don't let it drift like the summary above did.
 
 ## Commands
 
@@ -43,8 +116,9 @@ There is no test suite, linter, or build step beyond Terraform's own `fmt`/`vali
 requires AWS credentials (`aws configure`) for a free-tier account; `providers.tf` targets
 `us-east-1` by default via `var.aws_region`.
 
-State is local (`backend "local"`, `providers.tf`) — `terraform.tfstate` is produced in the repo
-root on apply and is gitignored along with `.terraform`.
+State is remote (`backend "s3"`, `providers.tf`, set up in Módulo 2) — S3 bucket
+`agentinfra-tfstate-<account_id>` with DynamoDB locking (`agentinfra-tfstate-lock-dev`). No local
+`terraform.tfstate` is used day-to-day; it and `.terraform` stay gitignored regardless.
 
 ## Learning log (`/modules`)
 
@@ -53,13 +127,27 @@ Architecture notes below). One file per roadmap step (`01-fundamentos.md`, `02-b
 …, matching the numbering in README.md), covering what was built, new terminology, and key
 concepts. When a roadmap module is completed, add its `modules/NN-nombre.md` file (see
 `modules/01-fundamentos.md` for the expected shape) and update the status table in
-`modules/README.md`.
+`modules/README.md`. Conceptual notes not tied to one numbered module (e.g.
+`modules/agent-harness.md`) go under the separate "Notas conceptuales" section of
+`modules/README.md` instead of the numbered table.
 
 ## Architecture notes
 
 - Root-module-only layout: `providers.tf` (Terraform/provider/backend config), `variables.tf`
-  (`aws_region`, `project_name`, `environment`), `iam.tf` (resources), `outputs.tf`. No
-  submodules yet — everything lives in the root module.
+  (`aws_region`, `project_name`, `environment`), `iam.tf` (Módulo 1 IAM resources), `backend.tf`
+  (Módulo 2 S3+DynamoDB backend bootstrap), `action-groups.tf` (Módulo 3 tool Lambdas + DynamoDB),
+  `lambda/create_ticket/`, `lambda/get_ticket_status/`, `lambda/query_faqs/` (Lambda source —
+  `query_faqs` is Módulo 5, bridges the Gateway to the Módulo 4 KB), `lambda/chat_proxy/` (Módulo 6,
+  calls `InvokeHarness`), `knowledge-base.tf` (Módulo 4 KB + S3 Vectors + FAQ bucket),
+  `knowledge-base/faqs/` (FAQ content, uploaded via `aws_s3_object`), `bedrock-agentcore.tf`
+  (Módulo 5: harness, gateway, gateway targets, their IAM roles), `api-gateway.tf` (Módulo 6: HTTP
+  API + proxy Lambda), `observability.tf` (Módulo 7: log groups, alarms, SNS, budget), `cicd.tf`
+  (Módulo 8: OIDC provider + GitHub Actions IAM role), `.github/workflows/` (Módulo 8: the actual
+  CI/CD workflows — YAML, not Terraform), `outputs.tf`. No submodules yet — everything lives in
+  the root module.
+- AWS provider is pinned `~> 6.0` (bumped from `~> 5.0` in Módulo 4 — the `aws_s3vectors_*`
+  resources need >= 6.24). Verify with `terraform plan` before any future provider bump that
+  nothing already-deployed shows an unexpected diff, same as was done for this one.
 - Resource naming convention: `${var.project_name}-<purpose>-${var.environment}` (see the IAM
   role names in `iam.tf`). Keep new resources consistent with this pattern.
 - `default_tags` in `providers.tf` already stamps every resource with `Project`, `Environment`,

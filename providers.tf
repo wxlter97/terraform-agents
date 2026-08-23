@@ -3,8 +3,13 @@ terraform {
 
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
+      source = "hashicorp/aws"
+      # >= 6.24 requerido por los recursos aws_s3vectors_* (Módulo 4, vector
+      # store del Knowledge Base) — subido desde "~> 5.0" para eso. El único
+      # cambio de la guía de migración v5→v6 que toca este repo es el rename
+      # de `region` a `bucket_region` en aws_s3_bucket (no lo usábamos en
+      # ningún .tf/output), así que la subida fue de bajo riesgo.
+      version = "~> 6.0"
     }
     # Empaqueta el código de las Lambdas de action groups (Módulo 3) en .zip
     archive = {

@@ -1,0 +1,89 @@
+# Módulo 8: corre en cada PR contra master. fmt/validate no necesitan
+# credenciales de AWS; init/plan sí (vía OIDC, sin secrets estáticos —
+# ver cicd.tf y modules/08-cicd.md). El plan queda comentado en el PR,
+# actualizando el mismo comentario en pushes sucesivos en vez de acumular uno
+# nuevo por cada push.
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - "**.tf"
+      - "lambda/**"
+      - "knowledge-base/**"
+      - ".github/workflows/terraform-*.yml"
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: terraform fmt -check
+        run: terraform fmt -check -diff
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_CI_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: terraform init
+        run: terraform init
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform plan
+        id: plan
+        run: |
+          set +e
+          terraform plan -no-color -input=false > plan_output.txt 2>&1
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
+          cat plan_output.txt
+
+      - name: Comment plan on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- terraform-plan -->';
+            let output = fs.readFileSync('plan_output.txt', 'utf8');
+            // Los comentarios de PR tienen un límite de tamaño; recortar desde
+            // el final es lo útil (el resumen "Plan: N to add..." queda ahí).
+            if (output.length > 60000) {
+              output = '...(truncado)...\n' + output.slice(-60000);
+            }
+            const body = `${marker}\n### Terraform Plan\n\`\`\`\n${output}\n\`\`\``;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find((c) => c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail the job if plan failed
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1

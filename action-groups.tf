@@ -1,12 +1,14 @@
 # ---------------------------------------------------------------------------
-# Módulo 3: action groups del agente — Lambdas `create_ticket` y
-# `get_ticket_status` sobre una tabla DynamoDB de tickets (ver "Caso de uso"
-# en README.md). `aws_iam_role.lambda_exec_role` ya existía desde el Módulo 1.
+# Módulo 3: tool Lambdas del agente — `create_ticket` y `get_ticket_status`
+# sobre una tabla DynamoDB de tickets (ver "Caso de uso" en README.md).
+# `aws_iam_role.lambda_exec_role` ya existía desde el Módulo 1.
 #
-# El permiso resource-based para que Bedrock invoque estas Lambdas
-# (aws_lambda_permission con source_arn del Agent Alias) se agrega recién en
-# el Módulo 5, cuando el alias exista y tengamos su ARN. Por ahora quedan
-# desplegadas pero nada externo puede invocarlas todavía.
+# El código de estas Lambdas (`lambda/*/index.py`) usa el contrato de
+# evento/respuesta de **AgentCore Gateway** (Módulo 5), no el de Bedrock
+# Agents Classic — ver modules/05-bedrock-agent.md para el porqué. El permiso
+# resource-based para que el Gateway las invoque vive en bedrock-agentcore.tf,
+# con source_arn del ARN del **Gateway** (no del agente/harness — el Gateway
+# es quien efectivamente llama a la Lambda).
 # ---------------------------------------------------------------------------
 
 resource "aws_dynamodb_table" "tickets" {
