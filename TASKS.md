@@ -92,11 +92,16 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       un ticket creado en una invocación anterior (confirma que AgentCore Memory funciona).
 - [x] `modules/06-api-gateway.md`
 
-## ⏳ Módulo 7 — Observabilidad
+## ✅ Módulo 7 — Observabilidad (completado)
 
-- [ ] Log groups de CloudWatch para las Lambdas y trace del agente
-- [ ] Alarms básicas (errores de Lambda, throttles, latencia del agente)
-- [ ] `modules/07-observabilidad.md`
+- [x] Log groups de CloudWatch para las Lambdas y el runtime del harness — retención de 14 días,
+      importados los que ya existían de invocaciones anteriores (ver `modules/07-observabilidad.md`
+      para el porqué y los comandos exactos de `terraform import`)
+- [x] Alarms básicas: errores + throttles por Lambda (8), más 5xx + latencia p90 del endpoint
+      `/chat` (2) — 10 en total, dentro del free tier siempre-gratuito de CloudWatch Alarms
+- [x] Budget de AWS ($5/mes, filtrado por tag `Project`) — cierra el pendiente que quedó anotado en
+      el Módulo 6 sobre el endpoint público sin auth ni throttle
+- [x] `modules/07-observabilidad.md`
 
 ## ⏳ Módulo 8 — CI/CD
 
@@ -111,10 +116,12 @@ Convención: cada módulo completado termina con su archivo `modules/NN-nombre.m
       `s3` (Módulo 2) está deprecado a favor de `use_lockfile`. No urgente (sigue funcionando),
       pero conviene migrarlo en algún momento — no se tocó en el Módulo 4 para no mezclar cambios
       no relacionados en el mismo apply.
-- [ ] El endpoint `POST /chat` (Módulo 6) no tiene autenticación ni throttle — a propósito para
-      este proyecto de aprendizaje (ver nota de seguridad en `modules/06-api-gateway.md`), pero
-      vale la pena revisar si el Módulo 7 (observabilidad) debería incluir al menos una alarm de
-      gasto/uso.
+- [ ] El endpoint `POST /chat` (Módulo 6) sigue sin autenticación ni throttle — a propósito para
+      este proyecto de aprendizaje (ver nota de seguridad en `modules/06-api-gateway.md`). El
+      budget del Módulo 7 avisa si el gasto se dispara, pero no lo previene — un throttle/usage
+      plan o auth (IAM o JWT) siguen fuera del roadmap salvo que se pida explícitamente.
+- [ ] Confirmar la suscripción de SNS por mail (wxlter.97@gmail.com) — quedó en
+      `PendingConfirmation` al terminar el Módulo 7, las alarms no notifican hasta que se confirme.
 
 ## Cómo usar este archivo
 

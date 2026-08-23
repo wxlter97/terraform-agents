@@ -167,7 +167,26 @@ curl -X POST "$(terraform output -raw api_endpoint)/chat" \
 
 Detalle completo en [modules/06-api-gateway.md](modules/06-api-gateway.md).
 
+## Módulo 7 (este) — Observabilidad
+
+- Log groups de CloudWatch (14 días de retención) para las 4 Lambdas y el runtime del harness.
+- 10 alarms básicas: errores + throttles por Lambda, 5xx + latencia p90 del endpoint `/chat` —
+  todas notifican a un tópico de SNS con suscripción por email.
+- Budget de AWS ($5/mes, filtrado por tag `Project`) — la única red de seguridad contra gasto
+  descontrolado del endpoint público sin autenticación del módulo 6.
+
+```bash
+terraform init
+terraform plan
+terraform apply
+
+# Ver el estado de las alarms
+aws cloudwatch describe-alarms --alarm-name-prefix agentinfra \
+  --query "MetricAlarms[].{name:AlarmName,state:StateValue}" --output table
+```
+
+Detalle completo en [modules/07-observabilidad.md](modules/07-observabilidad.md).
+
 ## Roadmap de módulos siguientes
 
-7. Observabilidad: CloudWatch logs y alarms.
 8. CI/CD: GitHub Actions con `terraform plan`/`apply` en pull requests.

@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Documentation and comments in this repo are written in Spanish — match that when editing
 existing files.
 
-This is currently **Módulo 6** of a planned multi-module roadmap (see README.md). Módulos 1-6 are
+This is currently **Módulo 7** of a planned multi-module roadmap (see README.md). Módulos 1-7 are
 done and actually deployed (not just code-complete — verify against `terraform state list` /
 `terraform plan`, not just by reading the `.tf` files, since earlier sessions assumed "code
 exists" meant "applied" and that wasn't true for Módulo 3 until it was actually run):
@@ -37,6 +37,12 @@ exists" meant "applied" and that wasn't true for Módulo 3 until it was actually
   Módulo 4 FAQ content, and correctly recalls a ticket created in an earlier session (confirms
   AgentCore Memory works). Getting there required fixing two real IAM gaps and completing an
   external form — see [modules/06-api-gateway.md](modules/06-api-gateway.md).
+- **Módulo 7 (observability)** — `observability.tf`: log groups (14-day retention, imported the
+  ones already auto-created by prior invocations) for all 4 Lambdas + the harness runtime; 10
+  CloudWatch alarms (Lambda errors/throttles ×4, API Gateway 5xx + p90 latency) via one SNS topic;
+  a $5/mo AWS Budget filtered by the `Project` tag, notifying at 80% actual / 100% forecasted.
+  Closes the cost-guardrail gap flagged in Módulo 6 (the public `/chat` endpoint has no auth or
+  throttle). See [modules/07-observabilidad.md](modules/07-observabilidad.md).
 
 **Account-level walls hit along the way — useful if this project is ever recreated in a fresh
 account, since #2 is architectural (permanent) but #1/#3/#4 are one-time setup gates that will
@@ -63,11 +69,10 @@ reappear:**
    `bedrock-agentcore.tf`) — not a business decision like #3. Per AWS, once a model is activated
    account-wide, other roles don't need this permission, but it's harmless to leave in place.
 
-Planned next modules (do not build ahead of the current module unless asked): CloudWatch
-observability, and GitHub Actions CI/CD.
+Planned next modules (do not build ahead of the current module unless asked): GitHub Actions CI/CD.
 
 **Concrete use case (see README.md "Caso de uso"):** a support/helpdesk agent, fully working
-end-to-end as of Módulo 6 — verified live, not just deployed. It answers user questions from the
+end-to-end as of Módulo 6, now with monitoring/cost guardrails from Módulo 7. It answers user questions from the
 Knowledge Base of FAQs (Módulo 4, RAG, via the `query_faqs` tool); when that's not enough, it falls
 back to `create_ticket` / `get_ticket_status` (Módulo 3) — backed by DynamoDB — all reachable over
 the HTTP endpoint from Módulo 6. Keep new Lambdas/KB content aligned with this scenario unless the
@@ -121,7 +126,8 @@ concepts. When a roadmap module is completed, add its `modules/NN-nombre.md` fil
   calls `InvokeHarness`), `knowledge-base.tf` (Módulo 4 KB + S3 Vectors + FAQ bucket),
   `knowledge-base/faqs/` (FAQ content, uploaded via `aws_s3_object`), `bedrock-agentcore.tf`
   (Módulo 5: harness, gateway, gateway targets, their IAM roles), `api-gateway.tf` (Módulo 6: HTTP
-  API + proxy Lambda), `outputs.tf`. No submodules yet — everything lives in the root module.
+  API + proxy Lambda), `observability.tf` (Módulo 7: log groups, alarms, SNS, budget), `outputs.tf`.
+  No submodules yet — everything lives in the root module.
 - AWS provider is pinned `~> 6.0` (bumped from `~> 5.0` in Módulo 4 — the `aws_s3vectors_*`
   resources need >= 6.24). Verify with `terraform plan` before any future provider bump that
   nothing already-deployed shows an unexpected diff, same as was done for this one.

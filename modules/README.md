@@ -18,7 +18,7 @@ documentación formal del código (eso ya lo cubren los comentarios en los `.tf`
 | [04-knowledge-base.md](04-knowledge-base.md) | 4. Knowledge Base (RAG) | ✅ Completado |
 | [05-bedrock-agent.md](05-bedrock-agent.md) | 5. El agente (Bedrock AgentCore, no Bedrock Agents Classic — ver el archivo) | ✅ Completado |
 | [06-api-gateway.md](06-api-gateway.md) | 6. API Gateway + Lambda proxy | ✅ Completado |
-| `07-observabilidad.md` | 7. CloudWatch logs y alarms | ⏳ Pendiente |
+| [07-observabilidad.md](07-observabilidad.md) | 7. CloudWatch logs y alarms | ✅ Completado |
 | `08-cicd.md` | 8. CI/CD (GitHub Actions) | ⏳ Pendiente |
 
 Cada archivo nuevo se agrega al terminar el módulo correspondiente.
